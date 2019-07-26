@@ -6,7 +6,7 @@ netid=rxd170930
 
 #
 # Root directory of your project
-PROJDIR=/home/012/r/rx/rxd170930/AOS/AOS_Project2
+PROJDIR=/home/012/r/rx/rxd170930/AOS/lamport-mutex-algo
 
 #
 # Directory where the config file is located on your local system

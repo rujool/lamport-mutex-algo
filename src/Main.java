@@ -1,16 +1,19 @@
+import org.xml.sax.ext.Locator2;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.*;
 
 public class Main {
 
-    private static class Node{
+
+    private static int numCSexecuted;
+
+    public static class Node{
         private int id;
         private String hostname;
         private int port;
@@ -33,9 +36,9 @@ public class Main {
             this.port = port;
         }
     }
-
+    private static MutexService mutexService;
     private static int n, interRequestDelay, csExecTime, requestsPerNode;
-    private static List<Node> nodes;
+    public static List<Node> nodes;
     private static Map<Integer, Node> idToNodeMap;
     public static String ownHostName;
     public static String PROJECT_DIR = System.getProperty("user.dir")+"/";
@@ -43,23 +46,30 @@ public class Main {
     public static int timestamp, lastRequestTimestamp;
     public static Map<Integer, Boolean> receivedMsgLargerTimestamp;
     public static PriorityBlockingQueue<QueueEntry> priorityQueue;
-    private static final Object lock = new Object();
+    public static final Object sendRcvLock = new Object();
+    public static boolean executingCS,canSend;
+    public static BlockingQueue<ReceiverThread> receiverThreadQueue;
 
 
     public static void main(String[] args) {
         try {
+            Sender sender = new Sender();
+            mutexService = new MutexService(sender);
             ownHostName = InetAddress.getLocalHost().getHostName();
             System.out.println("Own hostname:"+ownHostName);
             readConfig();
             priorityQueue = new PriorityBlockingQueue<>();
-            startReceiver();
+            initMap();
+            startReceiver(mutexService);
             int numRequests = 0;
             do{
-                double waitTime = generateRandomExponential(5000);
+                double waitTime = generateRandomExponential(interRequestDelay);
                 busyWait(waitTime);
-
+                mutexService.enterCS();
+                executeCS(csExecTime);
+                numRequests ++;
             }while(numRequests < requestsPerNode);
-
+            System.out.println("Num of CS executed: "+numCSexecuted);
         } catch (UnknownHostException e) {
             e.printStackTrace();
         } catch (Exception e) {
@@ -69,7 +79,7 @@ public class Main {
     }
 
     public static void readConfig() throws Exception {
-        File file = new File(PROJECT_DIR + "/AOS/AOS_Project2/config.txt");
+        File file = new File(PROJECT_DIR + "/AOS/lamport-mutex-algo/config.txt");
         Scanner sc = new Scanner(file);
 
         while (sc.hasNextLine()) {
@@ -120,46 +130,14 @@ public class Main {
         return true;
     }
 
-    public static void broadcastMessages(String type) {
-        new Thread(() -> {
-            Message m = new Message(ownId,ownHostName,ownPort,type,timestamp);
-            for(Node node: nodes){
-                if(node.getId() == ownId){
-                    continue;
-                }
-                boolean wait = true;
-                while (wait) {
-                    try {
-                        System.out.println(ownHostName+" sending " + type +" message to "+node.getHostname());
-                        Socket socket = new Socket(node.getHostname(), node.getPort());
-                        ObjectOutputStream os = new ObjectOutputStream(socket.getOutputStream());
-                        wait = false;
-                        os.writeObject(m);
-                        os.close();
-                        socket.close();
-                    }catch (ConnectException e) {
-                        System.out.println("Connection failed, waiting and trying again");
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e1) {
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                    catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }).start();
-    }
-
-    public static void startReceiver() {
+    public static void startReceiver(MutexService mutexService) {
         (new Thread() {
             @Override
             public void run() {
                 try (ServerSocket serverSocket = new ServerSocket(ownPort)) {
                     while (true) {
-                        new ReceiverThread(serverSocket.accept()).start();
+                        ReceiverThread receiverThread = new ReceiverThread(serverSocket.accept(),mutexService);
+                        receiverThread.start();
                     }
                 } catch (IOException e) {
                     System.err.println("Could not listen on port " + ownPort);
@@ -168,16 +146,6 @@ public class Main {
             }
         }).start();
 
-    }
-
-    private static void generateCSRequest() {
-        QueueEntry queueEntry = new QueueEntry(timestamp,ownId);
-        priorityQueue.add(queueEntry);
-        synchronized (lock){
-            timestamp ++;
-        }
-        lastRequestTimestamp = timestamp;
-        broadcastMessages("request");
     }
 
     private static double generateRandomExponential(double mean){
@@ -190,6 +158,39 @@ public class Main {
         while(waitUntil > System.nanoTime()){
             // do nothing
         }
+    }
+
+
+
+    public static boolean isL1True() {
+        for(Map.Entry<Integer,Boolean> e: receivedMsgLargerTimestamp.entrySet()){
+            if(!e.getValue()){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void initMap(){
+        receivedMsgLargerTimestamp = new ConcurrentHashMap<>();
+        for(Node node: nodes){
+            if(node.getId() != ownId) {
+                receivedMsgLargerTimestamp.put(node.getId(),false);
+            }
+        }
+    }
+
+    public static boolean isL2True() {
+        return (!priorityQueue.isEmpty() && priorityQueue.peek().getId() == ownId);
+    }
+
+    public static void executeCS(double meanExecTime) {
+        double csExecTime = generateRandomExponential(meanExecTime);
+        System.out.println(ownHostName + " executing CS for "+csExecTime/1000+"s");
+        busyWait(csExecTime);
+        mutexService.leaveCS();
+        executingCS = false;
+        Main.numCSexecuted ++;
     }
 
 }

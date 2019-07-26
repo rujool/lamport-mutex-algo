@@ -4,13 +4,13 @@
 netid=rxd170930
 
 # Root directory of your project
-PROJDIR=/home/012/r/rx/rxd170930/AOS/AOS_Project2
+PROJDIR=/home/012/r/rx/rxd170930/AOS/lamport-mutex-algo
 
 # Directory where the config file is located on your local system
 CONFIGLOCAL=config.txt
 
 # Directory your java classes are in
-BINDIR=$PROJDIR/out/production/AOS_Project2
+BINDIR=$PROJDIR/out/production/lamport-mutex-algo
 
 # Your main project class
 PROG=Main

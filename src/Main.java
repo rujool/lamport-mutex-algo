@@ -1,8 +1,6 @@
 import org.xml.sax.ext.Locator2;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.net.*;
 import java.util.*;
@@ -187,6 +185,21 @@ public class Main {
     public static void executeCS(double meanExecTime) {
         double csExecTime = generateRandomExponential(meanExecTime);
         System.out.println(ownHostName + " executing CS for "+csExecTime/1000+"s");
+        File logFile = new File(PROJECT_DIR + "/AOS/lamport-mutex-algo/logs.txt");
+        try {
+            if (!logFile.exists()) {
+                logFile.createNewFile();
+            }
+            FileWriter fw = new FileWriter(logFile.getAbsoluteFile(), true);
+            BufferedWriter bw = new BufferedWriter(fw);
+            bw.write(Main.ownHostName + " entering CS");
+            bw.newLine();
+            bw.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         busyWait(csExecTime);
         mutexService.leaveCS();
         executingCS = false;

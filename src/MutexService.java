@@ -1,3 +1,5 @@
+import java.io.*;
+
 public class MutexService {
 
     private Sender sender;
@@ -23,6 +25,22 @@ public class MutexService {
     public void leaveCS(){
         Main.priorityQueue.poll();
         System.out.println(Main.ownHostName+" leaving CS");
+        File logFile = new File(Main.PROJECT_DIR + "/AOS/lamport-mutex-algo/logs.txt");
+        try {
+            // if file doesnt exists, then create it
+            if (!logFile.exists()) {
+                logFile.createNewFile();
+            }
+            FileWriter fw = new FileWriter(logFile.getAbsoluteFile(), true);
+            BufferedWriter bw = new BufferedWriter(fw);
+            bw.write(Main.ownHostName + " leaving CS");
+            bw.newLine();
+            bw.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         this.sender.broadcastMessages("release");
     }
 }

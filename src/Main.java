@@ -8,9 +8,6 @@ import java.util.concurrent.*;
 
 public class Main {
 
-
-    private static int numCSexecuted;
-
     public static class Node{
         private int id;
         private String hostname;
@@ -34,20 +31,20 @@ public class Main {
             this.port = port;
         }
     }
+    public static int numCSexecuted, totalMessagesTransmitted;
     private static MutexService mutexService;
-    private static int n, interRequestDelay, csExecTime, requestsPerNode;
+    private static int n, interRequestDelay, csExecTime;
+    public static int requestsPerNode;
     public static List<Node> nodes;
     private static Map<Integer, Node> idToNodeMap;
     public static String ownHostName;
     public static String PROJECT_DIR = System.getProperty("user.dir")+"/";
     public static int ownId, ownPort;
     public static int timestamp, lastRequestTimestamp;
-    public static Map<Integer, Boolean> receivedMsgLargerTimestamp;
+    public static Map<Integer, Boolean> receivedMsgLargerTimestamp, receivedEndMsgMap;
     public static PriorityBlockingQueue<QueueEntry> priorityQueue;
-    public static final Object sendRcvLock = new Object();
-    public static boolean executingCS,canSend;
-    public static BlockingQueue<ReceiverThread> receiverThreadQueue;
-
+    public static boolean executingCS;
+    public static double currentTime,totalResponseTime;
 
     public static void main(String[] args) {
         try {
@@ -57,7 +54,8 @@ public class Main {
             System.out.println("Own hostname:"+ownHostName);
             readConfig();
             priorityQueue = new PriorityBlockingQueue<>();
-            initMap();
+            Main.initMap();
+            receivedEndMsgMap = new ConcurrentHashMap<>();
             startReceiver(mutexService);
             int numRequests = 0;
             do{
@@ -67,6 +65,10 @@ public class Main {
                 executeCS(csExecTime);
                 numRequests ++;
             }while(numRequests < requestsPerNode);
+            if(Main.receivedEndFromAll()){
+                Main.writeToFile();
+            }
+            sender.broadcastMessages("end");
             System.out.println("Num of CS executed: "+numCSexecuted);
         } catch (UnknownHostException e) {
             e.printStackTrace();
@@ -200,10 +202,39 @@ public class Main {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
         busyWait(csExecTime);
         mutexService.leaveCS();
         executingCS = false;
-        Main.numCSexecuted ++;
+        numCSexecuted ++;
+    }
+
+    public static void writeToFile() {
+        File experimentFile = new File(Main.PROJECT_DIR + "/AOS/lamport-mutex-algo/experiments-"+Main.ownId+".txt");
+        try {
+            if (!experimentFile.exists()) {
+                experimentFile.createNewFile();
+            }
+            FileWriter fw = new FileWriter(experimentFile.getAbsoluteFile());
+            BufferedWriter bw = new BufferedWriter(fw);
+            bw.write(String.valueOf(totalMessagesTransmitted));
+            bw.write(String.valueOf(totalResponseTime/numCSexecuted));
+            bw.close();
+        } catch (FileNotFoundException e1) {
+            e1.printStackTrace();
+        } catch (IOException e2) {
+            e2.printStackTrace();
+        }
+    }
+
+
+    public static boolean receivedEndFromAll() {
+        for(Map.Entry<Integer,Boolean> e: receivedEndMsgMap.entrySet()){
+            if(!e.getValue()){
+                return false;
+            }
+        }
+        return true;
     }
 
 }

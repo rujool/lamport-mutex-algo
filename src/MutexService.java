@@ -9,22 +9,40 @@ public class MutexService {
     }
 
     public void enterCS(){
+        Main.initMap();
         this.sender.broadcastMessages("request");
+        Main.currentTime = System.currentTimeMillis();
 //        System.out.println("Waiting for message with larger timestamp from all processes, and also own request at top");
         synchronized (this){
             try{
-                System.out.println("Waiting for L1 and L2 to be true");
+//                System.out.println("Waiting for L1 and L2 to be true");
                 this.wait();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            System.out.println("Received notification from receiver thread.");
+//            System.out.println("Received notification from receiver thread.");
         }
     }
 
     public void leaveCS(){
+        Main.totalResponseTime += System.currentTimeMillis() - Main.currentTime;
         Main.priorityQueue.poll();
         System.out.println(Main.ownHostName+" leaving CS");
+//        if(Main.numCSexecuted == Main.requestsPerNode - 1){
+//            File responseTimeFile = new File(Main.PROJECT_DIR + "/AOS/lamport-mutex-algo/response-time-"+Main.ownId+".txt");
+//            try{
+//                if(!responseTimeFile.exists()){
+//                    responseTimeFile.createNewFile();
+//                    FileWriter fw = new FileWriter(responseTimeFile.getAbsoluteFile());
+//                    BufferedWriter bw = new BufferedWriter(fw);
+//                    bw.write(String.valueOf(Main.totalResponseTime/Main.numCSexecuted));
+//                    bw.close();
+//                }
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//
+//        }
         File logFile = new File(Main.PROJECT_DIR + "/AOS/lamport-mutex-algo/logs.txt");
         try {
             // if file doesnt exists, then create it

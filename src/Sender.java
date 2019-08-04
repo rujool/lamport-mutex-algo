@@ -1,15 +1,14 @@
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.ConnectException;
 import java.net.Socket;
 
 public class Sender {
 
-    public boolean canSend = true;
 
     public static void sendReply(String hostname, int port){
         synchronized (Main.class){
             Main.timestamp++;
+            Main.totalMessagesTransmitted ++;
             Message m = new Message(Main.ownId, Main.ownHostName, Main.ownPort,"reply",Main.timestamp);
             boolean wait = true;
             while (wait) {
@@ -22,7 +21,7 @@ public class Sender {
                     os.close();
                     socket.close();
                 }catch (ConnectException e) {
-                    System.out.println("Connection failed, waiting and trying again");
+                    System.out.println("Connection to "+hostname+" failed, waiting and trying again");
                     try {
                         Thread.sleep(2000);
                     } catch (InterruptedException e1) {
@@ -33,6 +32,7 @@ public class Sender {
                     e.printStackTrace();
                 }
             }
+//            Main.writeToFile();
 
         }
 
@@ -59,12 +59,18 @@ public class Sender {
                             ObjectOutputStream os = new ObjectOutputStream(socket.getOutputStream());
                             wait = false;
                             os.writeObject(m);
+                            if(!m.getType().equals("end")){
+                                Main.totalMessagesTransmitted++;
+                            }
                             os.close();
                             socket.close();
                         }catch (ConnectException e) {
-                            System.out.println("Connection failed, waiting and trying again");
+                            System.out.println("Connection to "+node.getHostname()+" failed, waiting and trying again");
                             try {
                                 Thread.sleep(2000);
+                                if(type.equals("request")){
+                                    Main.totalResponseTime -= 2000;
+                                }
                             } catch (InterruptedException e1) {
                                 Thread.currentThread().interrupt();
                             }
@@ -73,8 +79,12 @@ public class Sender {
                             e.printStackTrace();
                         }
                     }
+//                    Main.writeToFile();
                 }
             }
         }).start();
     }
+
+
+
 }
